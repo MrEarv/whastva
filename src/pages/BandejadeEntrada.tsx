@@ -490,7 +490,17 @@ const BandejadeEntrada: React.FC = () => {
             const socketUrl = new URL(config.API_URL).origin;
             const socket = io(socketUrl, { transports: ['websocket', 'polling'] });
             socketRef.current = socket;
-            const userId = localStorage.getItem('uid');
+            
+            // Parche para obtener el userId del token JWT almacenado en localStorage
+            const token = localStorage.getItem('token');
+            let userId = null;
+            if (token) {
+                try {
+                    userId = JSON.parse(atob(token.split('.')[1])).uid;
+                } catch (e) {
+                    console.error("No se pudo desencriptar el token");
+                }
+            }
 
             socket.on('connect', () => {
                 console.log('🔌 Conectado al servidor de Sockets.');
