@@ -1209,9 +1209,9 @@ data.filename = uploadedFileName;
 <Box sx={{ px: 2, py: 1.25, bgcolor: "background.paper", position: "relative", minHeight: 40 }}>
     
 
-    {(b.type === "Texto" || b.type === "Encuesta") && (
+    {b.type === "Texto" && (
         <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: '120px', overflowY: 'auto' }} title={b.data?.text}>
-        {String(b.data?.text ?? (b.type === "Encuesta" ? formatSurveyText(b.data?.question ?? "", b.data?.options ?? []) : "")).slice(0, 150) || "Sin texto"}
+        {String(b.data?.text ?? "").slice(0, 150) || "Sin texto"}
         </Typography>
     )}
 
