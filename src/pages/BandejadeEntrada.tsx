@@ -307,7 +307,9 @@ const ConversationView: React.FC<{ chat: Chat; messages: Message[]; isLoading?: 
                     <Box flexGrow={1}>
                         <Typography variant="h6">{chat.name}</Typography>
                         <Typography variant="body2" color="text.secondary">
-                            {typingInfo?.jid === chat.jid && typingInfo?.isTyping ? <em style={{ color: 'primary.main' }}>escribiendo...</em> : chat.phoneNumber}
+                            {typingInfo?.jid === chat.jid && typingInfo?.isTyping 
+                                ? <em style={{ color: 'primary.main' }}>escribiendo...</em> 
+                                : (chat.phoneNumber?.includes('@lid') ? '' : chat.phoneNumber)}
                         </Typography>
                     </Box>
                     <StatusChip status={chat.chatStatus} />
@@ -329,7 +331,34 @@ const ConversationView: React.FC<{ chat: Chat; messages: Message[]; isLoading?: 
             >
                 <Box>
                     {isLoading ? <Box display="flex" justifyContent="center" alignItems="center" height="100%"><CircularProgress /></Box> :
-                        messages.length > 0 ? messages.map((msg) => <MessageBubble key={msg.msgId} msg={msg} />) :
+                        messages.length > 0 ? messages.map((msg, index) => {
+                            const currentLabel = getDateLabel(msg.timestamp * 1000);
+                            const prevLabel = index > 0 ? getDateLabel(messages[index - 1].timestamp * 1000) : null;
+                            
+                            // Solo mostramos la burbuja si cambió el día respecto al mensaje anterior
+                            const showSeparator = currentLabel !== prevLabel;
+
+                            return (
+                                <React.Fragment key={msg.msgId}>
+                                    {showSeparator && (
+                                        <Box display="flex" justifyContent="center" my={2}>
+                                            <Paper elevation={0} sx={{ 
+                                                px: 1.5, 
+                                                py: 0.5, 
+                                                borderRadius: 2, 
+                                                backgroundColor: theme.palette.mode === 'dark' ? '#1e2b33' : '#e1f5fe', 
+                                                color: theme.palette.text.secondary, 
+                                                fontSize: '0.75rem', 
+                                                textTransform: 'uppercase' 
+                                            }}>
+                                                {currentLabel}
+                                            </Paper>
+                                        </Box>
+                                    )}
+                                    <MessageBubble msg={msg} />
+                                </React.Fragment>
+                            );
+                        }) :
                         <Box display="flex" justifyContent="center" alignItems="center" height="100%" flexDirection="column" color="text.secondary">
                             <ChatBubbleOutlineIcon sx={{ fontSize: 50, mb: 2 }} />
                             <Typography>No hay mensajes en este chat.</Typography>
@@ -362,6 +391,46 @@ const ConversationView: React.FC<{ chat: Chat; messages: Message[]; isLoading?: 
     );
 };
 
+// Función para la burbuja separadora central de fechas en el chat
+const getDateLabel = (timestampInMs: number): string => {
+    if (!timestampInMs) return '';
+    const date = new Date(timestampInMs);
+    const today = new Date();
+    
+    const dateMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    const diffTime = todayMidnight.getTime() - dateMidnight.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return "Hoy";
+    if (diffDays === 1) return "Ayer";
+    if (diffDays === 2) return "Antier";
+    
+    return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
+const formatChatTimestamp = (timestampInMs: number): string => {
+    if (!timestampInMs) return '';
+    const date = new Date(timestampInMs);
+    const today = new Date();
+    
+    const dateMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    const diffTime = todayMidnight.getTime() - dateMidnight.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); 
+    } else if (diffDays === 1) {
+        return "Ayer";
+    } else if (diffDays === 2) {
+        return "Antier";
+    } else {
+        return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).replace('.', '');
+    }
+};
 
 // ======================= COMPONENTE PRINCIPAL ==========================
 const BandejadeEntrada: React.FC = () => {
@@ -544,7 +613,7 @@ const BandejadeEntrada: React.FC = () => {
                 setChats(prev => {
                     const chatIndex = prev.findIndex(c => c.jid === messageData.chatId);
                     let newChats = [...prev];
-                    const newTimestamp = new Date(messageData.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const newTimestamp = formatChatTimestamp(messageData.timestamp * 1000);
                     const lastMessageText = formatLastMessagePreview(messageData);
 
                     if (chatIndex > -1) {
@@ -627,7 +696,7 @@ const BandejadeEntrada: React.FC = () => {
                         jid: chat.sender_jid, 
                         name: chat.sender_name, 
                         lastMessage: lastMessageText, 
-                        timestamp: chat.last_message_came ? new Date(chat.last_message_came).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '', 
+                        timestamp: chat.last_message_came ? formatChatTimestamp(Number(chat.last_message_came) * 1000) : '',
                         phoneNumber: chat.sender_mobile, 
                         dbChatId: chat.chat_id, 
                         unreadCount: cachedVersion?.unreadCount || 0, 
@@ -654,12 +723,19 @@ const BandejadeEntrada: React.FC = () => {
         try {
             const cachedMessages = await db.messages.where('chatId').equals(chat.jid).toArray();
             setMessages(cachedMessages.sort((a, b) => a.timestamp - b.timestamp));
-            const response = await fetch(`${config.API_URL}inbox/get_convo?id=${chat.jid}`, { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+            const response = await fetch(`${config.API_URL}user/get_convo`, { 
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + localStorage.getItem('token') 
+                },
+                body: JSON.stringify({ chatId: chat.dbChatId })
+            });
             const data = await response.json();
             if (data.success && Array.isArray(data.data)) {
                 const transformedMessages: Message[] = data.data.map((msg: any) => transformBackendMessage(msg, chat.jid));
                 await db.messages.bulkPut(transformedMessages);
-                setMessages(transformedMessages.sort((a, b) => a.timestamp - b.timestamp));
+                setMessages(transformedMessages);
             }
         } catch (err) { console.error("Error cargando conversación:", err); } 
         finally { setIsLoadingMessages(false); }
@@ -676,7 +752,7 @@ const BandejadeEntrada: React.FC = () => {
                     auth: localStorage.getItem("token"),
                     accion: "POST",
                     data: { 
-                    text, toJid: selectedChat.jid, toName: selectedChat.name, chatId: selectedChat.jid, instance: instanceId 
+                    text, toJid: selectedChat.jid, toName: selectedChat.name, chatId: selectedChat.dbChatId, instance: instanceId 
                     }
                 }),
             });
@@ -768,7 +844,7 @@ const BandejadeEntrada: React.FC = () => {
             let payload: any = { 
                 toJid: selectedChat.jid, 
                 toName: selectedChat.name, 
-                chatId: selectedChat.jid, 
+                chatId: selectedChat.dbChatId, 
                 instance: instanceId, 
                 caption: caption 
             };
