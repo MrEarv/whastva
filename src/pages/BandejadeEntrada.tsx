@@ -3,7 +3,8 @@ import {
     Box, Typography, TextField, InputAdornment, Chip, IconButton,
     Paper, useTheme, CircularProgress, List, Avatar, Menu, MenuItem,
     AppBar, Toolbar, ListItem, ListItemAvatar, ListItemText, Button, Modal, Badge, Link,
-    Fab, Zoom 
+    Fab, Zoom, 
+    ListItemIcon
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import SendIcon from '@mui/icons-material/Send';
@@ -26,13 +27,16 @@ import ImagePreviewModal from './ImagePreviewModal';
 import notificationSound from '../notification/interface-124464.mp3';
 import lightModeBackground from '../images/LightMode.png';
 import darkModeBackground from '../images/DarkMode.jpg';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
 const fecha = new Date().toLocaleDateString();
 const hora = new Date().toLocaleTimeString();
 
 // ======================= SUB-COMPONENTES ==========================
 
-const StatusChip: React.FC<{ status?: string }> = ({ status }) => {
+const StatusChip: React.FC<{ status?: string; onUpdateStatus?: (status: 'open' | 'solved' | 'pending') => void }> = ({ status, onUpdateStatus }) => {
+    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+
     if (!status) return null;
 
     const statusConfig = {
@@ -44,12 +48,27 @@ const StatusChip: React.FC<{ status?: string }> = ({ status }) => {
     const configValue = statusConfig[status as keyof typeof statusConfig] || { label: status, color: 'default', emoji: '' };
 
     return (
-        <Chip 
-            label={`${configValue.emoji} ${configValue.label}`}
-            color={configValue.color as any}
-            size="small"
-            sx={{ mr: 1, fontWeight: 'bold' }}
-        />
+        <>
+            <Chip 
+                label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        {configValue.emoji} {configValue.label}
+                        {onUpdateStatus && <KeyboardArrowDownIcon fontSize="small" />}
+                    </Box>
+                }
+                color={configValue.color as any}
+                size="small"
+                onClick={onUpdateStatus ? (e) => setAnchorEl(e.currentTarget) : undefined}
+                sx={{ mr: 1, fontWeight: 'bold', cursor: onUpdateStatus ? 'pointer' : 'default' }}
+            />
+            {onUpdateStatus && (
+                <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+                    <MenuItem onClick={() => { onUpdateStatus('open'); setAnchorEl(null); }}>🟢 Abierto</MenuItem>
+                    <MenuItem onClick={() => { onUpdateStatus('pending'); setAnchorEl(null); }}>🤔 Pendiente</MenuItem>
+                    <MenuItem onClick={() => { onUpdateStatus('solved'); setAnchorEl(null); }}>✅ Resuelto</MenuItem>
+                </Menu>
+            )}
+        </>
     );
 };
 
@@ -62,8 +81,18 @@ const ChatListItem: React.FC<{ chat: Chat; isSelected: boolean; onClick: () => v
                 </Avatar>
             </ListItemAvatar>
             <ListItemText
-                primary={<Typography variant="subtitle1" noWrap>{chat.name}</Typography>}
+                primary={
+                    <Box display="flex" alignItems="center" justifyContent="space-between" width="100%">
+                        <Typography variant="subtitle1" noWrap sx={{ flexGrow: 1, pr: 1 }}>
+                            {chat.name}
+                        </Typography>
+                        <Box sx={{ flexShrink: 0 }}>
+                            <StatusChip status={chat.chatStatus} />
+                        </Box>
+                    </Box>
+                }
                 secondary={<Typography variant="body2" color="text.secondary" noWrap>{chat.lastMessage}</Typography>}
+                sx={{ pr: 1 }}
             />
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: '55px', ml: 1 }}>
                 <Typography variant="caption" color="primary.main" sx={{ fontWeight: 'bold' }}>
@@ -102,36 +131,21 @@ const MessageStatus: React.FC<{ status?: Message['status']; }> = ({ status }) =>
     return null;
 };
 
-const ChatActions: React.FC<{ onDeleteChat: () => void; onUpdateStatus: (status: 'open' | 'solved' | 'pending') => void; onGetSenderDetails: () => void; }> = ({ onDeleteChat, onUpdateStatus, onGetSenderDetails }) => {
+const ChatActions: React.FC<{ onDeleteChat: () => void; }> = ({ onDeleteChat }) => {
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-    const [statusMenuAnchorEl, setStatusMenuAnchorEl] = useState<null | HTMLElement>(null);
-    const isMainMenuOpen = Boolean(anchorEl);
-    const isStatusMenuOpen = Boolean(statusMenuAnchorEl);
-
-    const handleMainMenuClick = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget);
-    const handleMainMenuClose = () => setAnchorEl(null);
-
-    const handleStatusMenuClick = (event: React.MouseEvent<HTMLElement>) => setStatusMenuAnchorEl(event.currentTarget);
-    const handleStatusMenuClose = () => setStatusMenuAnchorEl(null);
-
-    const handleStatusSelect = (status: 'open' | 'solved' | 'pending') => {
-        onUpdateStatus(status);
-        handleStatusMenuClose();
-        handleMainMenuClose();
-    };
 
     return (
         <Box>
-            <IconButton onClick={handleMainMenuClick}><MoreVertIcon /></IconButton>
-            <Menu anchorEl={anchorEl} open={isMainMenuOpen} onClose={handleMainMenuClose}>
-                <MenuItem onClick={() => { onGetSenderDetails(); handleMainMenuClose(); }}>Ver Detalles del Contacto</MenuItem>
-                <MenuItem onClick={handleStatusMenuClick}>Cambiar Estado</MenuItem>
-                <MenuItem onClick={() => { onDeleteChat(); handleMainMenuClose(); }} sx={{ color: 'error.main' }}>Eliminar Chat</MenuItem>
-            </Menu>
-            <Menu anchorEl={statusMenuAnchorEl} open={isStatusMenuOpen} onClose={handleStatusMenuClose}>
-                <MenuItem onClick={() => handleStatusSelect('open')}>🟢 Abierto</MenuItem>
-                <MenuItem onClick={() => handleStatusSelect('pending')}>🤔 Pendiente</MenuItem>
-                <MenuItem onClick={() => handleStatusSelect('solved')}>✅ Resuelto</MenuItem>
+            <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>
+                <MoreVertIcon />
+            </IconButton>
+            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+                <MenuItem onClick={() => { onDeleteChat(); setAnchorEl(null); }} sx={{ color: 'error.main' }}>
+                    <ListItemIcon sx={{ color: 'inherit' }}>
+                        <DeleteOutlineIcon fontSize="small" />
+                    </ListItemIcon>
+                    Eliminar Chat
+                </MenuItem>
             </Menu>
         </Box>
     );
@@ -301,19 +315,30 @@ const ConversationView: React.FC<{ chat: Chat; messages: Message[]; isLoading?: 
         <Box display="flex" flexDirection="column" height="100%" width="100%" sx={{ position: 'relative' }}>
             <AppBar position="static" color="default" elevation={1}>
                 <Toolbar>
-                    <Avatar src={chat.profilePicUrl} sx={{ mr: 2 }}>
-                        {!chat.profilePicUrl && (chat.name ? chat.name.charAt(0) : '?')}
-                    </Avatar>
-                    <Box flexGrow={1}>
-                        <Typography variant="h6">{chat.name}</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            {typingInfo?.jid === chat.jid && typingInfo?.isTyping 
-                                ? <em style={{ color: 'primary.main' }}>escribiendo...</em> 
-                                : (chat.phoneNumber?.includes('@lid') ? '' : chat.phoneNumber)}
-                        </Typography>
+                    {/* Toda el área de la foto, nombre y número ahora es un botón gigante */}
+                    <Box 
+                        display="flex" 
+                        alignItems="center" 
+                        flexGrow={1} 
+                        onClick={onGetSenderDetails} 
+                        title="Ver detalles del contacto"
+                        sx={{ cursor: 'pointer', py: 0.5 }}
+                    >
+                        <Avatar src={chat.profilePicUrl} sx={{ mr: 2 }}>
+                            {!chat.profilePicUrl && (chat.name ? chat.name.charAt(0) : '?')}
+                        </Avatar>
+                        <Box>
+                            <Typography variant="h6">{chat.name}</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                {typingInfo?.jid === chat.jid && typingInfo?.isTyping 
+                                    ? <em style={{ color: 'primary.main' }}>escribiendo...</em> 
+                                    : (chat.phoneNumber?.includes('@lid') ? '' : chat.phoneNumber)}
+                            </Typography>
+                        </Box>
                     </Box>
-                    <StatusChip status={chat.chatStatus} />
-                    <ChatActions onDeleteChat={onDeleteChat} onUpdateStatus={onUpdateStatus} onGetSenderDetails={onGetSenderDetails} />
+                    
+                    <StatusChip status={chat.chatStatus} onUpdateStatus={onUpdateStatus} />
+                    <ChatActions onDeleteChat={onDeleteChat} />
                 </Toolbar>
             </AppBar>
 
@@ -456,9 +481,11 @@ const BandejadeEntrada: React.FC = () => {
 
     useEffect(() => {
         const unlockAudio = () => {
-            notificationAudio.current.play().catch(() => {});
-            notificationAudio.current.pause();
-            notificationAudio.current.currentTime = 0;
+            notificationAudio.current.play().then(() => {
+                notificationAudio.current.pause();
+                notificationAudio.current.currentTime = 0;
+            }).catch(() => {}); // Ignoramos si el navegador lo bloquea silenciosamente
+            
             window.removeEventListener('click', unlockAudio);
             window.removeEventListener('keydown', unlockAudio);
         };
@@ -588,7 +615,7 @@ const BandejadeEntrada: React.FC = () => {
                 const messageData = transformBackendMessage(newMessageRaw, chatId);
 
                 if (!messageData.fromMe && (selectedChatRef.current?.jid !== messageData.chatId || document.hidden)) {
-                    notificationAudio.current.play().catch(error => console.error("Error al reproducir sonido:", error));
+                    notificationAudio.current.play().catch(() => {});
                 }
 
                 if (selectedChatRef.current?.jid === messageData.chatId) {
