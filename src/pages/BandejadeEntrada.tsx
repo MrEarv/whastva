@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import PersonIcon from '@mui/icons-material/Person';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
 import {
     Box, Typography, TextField, InputAdornment, Chip, IconButton,
     Paper, useTheme, CircularProgress, List, Avatar, Menu, MenuItem,
@@ -122,12 +124,16 @@ const MessageInput: React.FC<{ onSendMessage: (text: string) => void; disabled?:
     );
 };
 
-const MessageStatus: React.FC<{ status?: Message['status']; }> = ({ status }) => {
+const MessageStatus: React.FC<{ status?: string; isSticker?: boolean }> = ({ status, isSticker }) => {
     if (!status) return null;
-    const iconStyles = { fontSize: '1rem', color: status === 'read' ? '#53bdeb' : 'action.active', marginLeft: '4px' };
-    if (status === 'pending') return <CircularProgress size={12} sx={{ ...iconStyles, color: 'action.active' }} />;
+    const isRead = status === 'read';
+    const iconColor = isRead ? '#34B7F1' : (isSticker ? '#ffffff' : 'action.active');
+    const iconStyles = { fontSize: '1.1rem', color: iconColor, marginLeft: '4px' };
+    
+    if (status === 'pending') return <CircularProgress size={12} sx={{ ...iconStyles, color: isSticker ? '#fff' : 'action.active' }} />;
     if (status === 'sent') return <CheckIcon sx={iconStyles} />;
-    if (status === 'delivered' || status === 'read') return <DoneAllIcon sx={iconStyles} />;
+    if (status === 'delivered') return <DoneAllIcon sx={iconStyles} />;
+    if (status === 'read') return <DoneAllIcon sx={iconStyles} />; 
     return null;
 };
 
@@ -226,14 +232,19 @@ const ContactDetailsModal: React.FC<{ open: boolean; onClose: () => void; detail
     );
 };
 
-const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
+const MessageBubble: React.FC<{ msg: any }> = ({ msg }) => {
     const theme = useTheme();
     const formatTime = (ts: number) => ts ? new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
     
+    const isSticker = msg.type === 'sticker';
+
     const renderMedia = () => {
         if (!msg.media) return null;
         const { url, mimetype, caption, fileName } = msg.media;
         
+        if (isSticker) {
+            return <img src={url} alt="Sticker" style={{ width: '130px', height: '130px', objectFit: 'contain' }} />;
+        }
         if (mimetype?.startsWith('image/')) {
             return (
                 <Link href={url} target="_blank" rel="noopener noreferrer">
@@ -241,16 +252,14 @@ const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
                 </Link>
             );
         }
-        
         if (mimetype?.startsWith('video/')) {
-            return (
-                <video src={url} controls style={{ maxWidth: '100%', borderRadius: '8px', display: 'block' }} />
-            );
+            return <video src={url} controls style={{ maxWidth: '100%', borderRadius: '8px', display: 'block' }} />;
         }
-
-        if (mimetype?.startsWith('audio/')) {
+        if (mimetype?.startsWith('audio/') || msg.type === 'aud' || msg.type === 'audio') {
             return (
-                <audio src={url} controls style={{ width: '100%' }} />
+                <Box sx={{ minWidth: '250px', pt: 1 }}>
+                    <audio src={url} controls style={{ width: '100%', height: '40px' }} />
+                </Box>
             );
         }
         
@@ -268,22 +277,95 @@ const MessageBubble: React.FC<{ msg: Message }> = ({ msg }) => {
         );
     };
 
-    const messageText = msg.text || msg.media?.caption;
+    const renderSpecialText = () => {
+        if (msg.type === 'loc') {
+            try {
+                const loc = JSON.parse(msg.text || '{}');
+                const mapsLink = `https://maps.google.com/?q=${loc.lat},${loc.long}`;
+                return (
+                    <Link href={mapsLink} target="_blank" rel="noopener noreferrer" sx={{ textDecoration: 'none', color: 'inherit' }}>
+                        <Box display="flex" alignItems="center" gap={1.5} p={1.5} sx={{ backgroundColor: 'action.hover', borderRadius: 1, minWidth: '200px' }}>
+                            <LocationOnIcon color="error" fontSize="large" />
+                            <Box>
+                                <Typography variant="body2" fontWeight="bold">Ubicación compartida</Typography>
+                                {loc.name && <Typography variant="caption" color="text.secondary" display="block" noWrap>{loc.name}</Typography>}
+                                <Typography variant="caption" color="primary">Ver en Google Maps</Typography>
+                            </Box>
+                        </Box>
+                    </Link>
+                );
+            } catch(e) { return <Typography>{msg.text}</Typography>; }
+        }
+
+        // 🔥 CONTACTOS V-CARD: Extraemos el JSON, creamos un archivo en RAM y lo hacemos descargable
+        if (msg.type === 'contact') {
+            try {
+                const contact = JSON.parse(msg.text || '{}');
+                const vcardBlob = new Blob([contact.vcard], { type: 'text/vcard' });
+                const vcardUrl = URL.createObjectURL(vcardBlob);
+
+                return (
+                    <Link href={vcardUrl} download={`${contact.displayName || 'Contacto'}.vcf`} sx={{ textDecoration: 'none', color: 'inherit' }}>
+                        <Box display="flex" alignItems="center" gap={1.5} p={1.5} sx={{ backgroundColor: 'action.hover', borderRadius: 1, minWidth: '200px', cursor: 'pointer' }}>
+                            <Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}><PersonIcon /></Avatar>
+                            <Box>
+                                <Typography variant="body2" fontWeight="bold">{contact.displayName || 'Contacto'}</Typography>
+                                <Typography variant="caption" color="primary" display="block">Clic para guardar</Typography>
+                            </Box>
+                        </Box>
+                    </Link>
+                );
+            } catch(e) { return <Typography>{msg.text}</Typography>; }
+        }
+
+        const messageText = msg.text || msg.media?.caption;
+        if (messageText) {
+            return (
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', mt: msg.media ? 0.5 : 0 }}>
+                    {messageText}
+                </Typography>
+            );
+        }
+        return null;
+    };
 
     return (
-        <Box key={msg.msgId} display="flex" justifyContent={msg.fromMe ? 'flex-end' : 'flex-start'} mb={1}>
-            <Paper elevation={1} sx={{ p: 1.5, borderRadius: 2, maxWidth: '70%', backgroundColor: msg.fromMe ? (theme.palette.mode === 'dark' ? '#005c4b' : '#dcf8c6') : theme.palette.background.paper }}>
+        // Añadimos margen extra (mb: 2.5) si hay una reacción para que no choque con el siguiente mensaje
+        <Box key={msg.msgId} display="flex" justifyContent={msg.fromMe ? 'flex-end' : 'flex-start'} mb={msg.reaction ? 2.5 : 1} sx={{ position: 'relative' }}>
+            <Paper elevation={isSticker ? 0 : 1} sx={{ 
+                p: isSticker ? 0.5 : 1.5, 
+                borderRadius: 2, 
+                maxWidth: '70%', 
+                backgroundColor: isSticker ? 'transparent' : (msg.fromMe ? (theme.palette.mode === 'dark' ? '#005c4b' : '#dcf8c6') : theme.palette.background.paper) 
+            }}>
                 {msg.media && renderMedia()}
-                {messageText && (
-                    <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', mt: msg.media ? 0.5 : 0 }}>
-                        {messageText}
-                    </Typography>
-                )}
-                <Box display="flex" justifyContent="flex-end" alignItems="center" mt={0.5}>
-                    <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>{formatTime(msg.timestamp)}</Typography>
-                    {msg.fromMe && <MessageStatus status={msg.status} />}
+                {(!msg.media || msg.media.caption) && renderSpecialText()}
+                
+                <Box display="flex" justifyContent="flex-end" alignItems="center" mt={isSticker ? -1.5 : 0.5} sx={{ 
+                    backgroundColor: isSticker ? 'rgba(0,0,0,0.3)' : 'transparent',
+                    borderRadius: 4, px: isSticker ? 1 : 0, width: 'fit-content', ml: 'auto'
+                }}>
+                    <Typography variant="caption" sx={{ color: isSticker ? '#fff' : 'text.secondary', mr: 0.5 }}>{formatTime(msg.timestamp)}</Typography>
+                    {msg.fromMe && <MessageStatus status={msg.status} isSticker={isSticker} />}
                 </Box>
             </Paper>
+
+            {msg.reaction && (
+                <Box sx={{
+                    position: 'absolute',
+                    bottom: -15,
+                    [msg.fromMe ? 'right' : 'left']: 15,
+                    backgroundColor: theme.palette.background.paper,
+                    borderRadius: '16px',
+                    padding: '2px 6px',
+                    fontSize: '1rem',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                    zIndex: 2,
+                    border: `1px solid ${theme.palette.divider}`
+                }}>
+                    {msg.reaction}
+                </Box>
+            )}
         </Box>
     );
 };
@@ -357,6 +439,7 @@ const ConversationView: React.FC<{ chat: Chat; messages: Message[]; isLoading?: 
                 <Box>
                     {isLoading ? <Box display="flex" justifyContent="center" alignItems="center" height="100%"><CircularProgress /></Box> :
                         messages.length > 0 ? messages.map((msg, index) => {
+                            if (msg.type === 'reaction' || msg.type === 'update') return null;
                             const currentLabel = getDateLabel(msg.timestamp * 1000);
                             const prevLabel = index > 0 ? getDateLabel(messages[index - 1].timestamp * 1000) : null;
                             
@@ -533,16 +616,19 @@ const BandejadeEntrada: React.FC = () => {
         const baseURL = new URL(config.API_URL).origin;
         const messageType = msg.type?.toLowerCase();
         
-        if (['image', 'video', 'doc', 'aud', 'doc_cap'].includes(messageType)) {
+        const reactionData = msg.reaction || msg.msgContext?.reaction || "";
+        
+        if (['image', 'video', 'doc', 'aud', 'doc_cap', 'sticker'].includes(messageType)) {
             const mediaType = messageType === 'doc_cap' ? 'doc' : messageType;
             let mimetype = msg.msgContext?.mimetype;
-            if (mediaType === 'image' && !mimetype) {
-                mimetype = 'image/jpeg';
+            if ((mediaType === 'image' || mediaType === 'sticker') && !mimetype) {
+                mimetype = mediaType === 'sticker' ? 'image/webp' : 'image/jpeg';
             }
             
             return {
                 msgId: msg.msgId, chatId: jid, fromMe: msg.route === 'outgoing',
                 timestamp: msg.timestamp, type: mediaType, status: msg.status,
+                reaction: reactionData, 
                 media: { 
                     url: `${baseURL}/media/${msg.msgContext?.fileName}`, 
                     fileName: msg.msgContext?.fileName, 
@@ -551,20 +637,31 @@ const BandejadeEntrada: React.FC = () => {
                 }
             };
         }
+        
+        let textContent = msg.msgContext?.text || '';
+        if (messageType === 'loc' || messageType === 'contact') {
+            textContent = JSON.stringify(msg.msgContext);
+        }
+
         return {
             msgId: msg.msgId, chatId: jid, fromMe: msg.route === 'outgoing',
-            text: msg.msgContext?.text || '', timestamp: msg.timestamp,
-            type: 'text', status: msg.status
+            text: textContent, timestamp: msg.timestamp,
+            type: messageType || 'text', status: msg.status,
+            reaction: reactionData 
         };
     };
 
     const formatLastMessagePreview = (message: Message): string => {
         const prefix = message.fromMe ? "Tú: " : "";
-    
+        
+        if (message.type === 'sticker') return `${prefix}🖼️ Sticker`;
+        if (message.type === 'loc') return `${prefix}📍 Ubicación`;
+        if (message.type === 'contact') return `${prefix}👤 Contacto`;
+        
         if (message.media?.caption) {
             return `${prefix}${message.media.caption}`;
         }
-        if (message.text) {
+        if (message.text && !['loc', 'contact'].includes(message.type)) {
             return `${prefix}${message.text}`;
         }
         if (message.media) {
@@ -657,16 +754,16 @@ const BandejadeEntrada: React.FC = () => {
                     return newChats;
                 });
             });
+            socket.on('push_new_reaction', (data: any) => {
+                const { msgId, reaction } = data;
+                db.messages.update(msgId, { reaction: reaction });
+                setMessages(prev => prev.map(m => m.msgId === msgId ? { ...m, reaction: reaction } : m));
+            });
 
-            socket.on('msg-status-updated', (updates: { id: string, jid: string, status: number }[]) => {
-                for (const update of updates) {
-                    const statusMap: { [key: number]: Message['status'] } = { 3: 'delivered', 4: 'read' };
-                    const newStatus = statusMap[update.status] || 'sent';
-                    db.messages.update(update.id, { status: newStatus });
-                    if (selectedChatRef.current?.jid === update.jid) {
-                        setMessages(prev => prev.map(m => m.msgId === update.id ? { ...m, status: newStatus } : m));
-                    }
-                }
+            socket.on('update_delivery_status', (data: any) => {
+                const { msgId, status } = data;
+                db.messages.update(msgId, { status: status });
+                setMessages(prev => prev.map(m => m.msgId === msgId ? { ...m, status: status } : m));
             });
 
             socket.on('presence-update', (data: { jid: string, presence: string }) => {

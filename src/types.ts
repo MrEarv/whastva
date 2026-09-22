@@ -18,6 +18,7 @@ export interface Message {
   text?: string;
   timestamp: number;
   type: string;
+  reaction?: string;
   status?: 'sent' | 'delivered' | 'read' | 'error' | 'pending';
   media?: {
     url: string;
