@@ -214,9 +214,17 @@ const handleToggleChatbotStatus = async (bot: Chatbot) => {
   const newStatus = !bot.active;
 
   setChatbots(prev =>
-    prev.map(b =>
-      b.id === bot.id ? { ...b, active: newStatus ? 1 : 0 } : b
-    )
+    prev.map(b => {
+      // El bot que el usuario clickeó
+      if (b.id === bot.id) {
+        return { ...b, active: newStatus ? 1 : 0 };
+      }
+      // Si estamos encendiendo, apagamos los otros bots que compartan la MISMA instancia
+      if (newStatus && b.instance_id === bot.instance_id) {
+        return { ...b, active: 0 };
+      }
+      return b;
+    })
   );
 
   try {
