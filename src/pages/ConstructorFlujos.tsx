@@ -1206,32 +1206,51 @@ data.filename = uploadedFileName;
                         </Box>
 
 <Box sx={{ px: 2, py: 1.25, bgcolor: "background.paper", position: "relative", minHeight: 40 }}>
-    
-
-    {b.type === "Texto" && (
+      {b.type === "Texto" && (
         <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: '120px', overflowY: 'auto' }} title={b.data?.text}>
         {String(b.data?.text ?? "").slice(0, 150) || "Sin texto"}
         </Typography>
     )}
 
-    {b.type === "Imagen" && b.data?.url && (
-        <Box
-            component="img"
-            src={b.data.url}
-            alt="Vista previa"
-            sx={{ width: '100%', maxHeight: 150, objectFit: 'contain', borderRadius: 1, my: 1 }}
-        />
+{b.type === "Imagen" && (b.data?.url || b.data?.filename) && (
+        <Box sx={{ my: 1 }}>
+            <Box
+                component="img"
+                src={`${config.API_URL.replace('api/', 'media/')}${b.data?.filename || (b.data?.url ? String(b.data.url).split('/').pop() : '')}`}
+                alt="Vista previa"
+                sx={{ width: '100%', maxHeight: 150, objectFit: 'contain', borderRadius: 1 }}
+                onError={(e: any) => { e.target.src = 'https://placehold.co/150x150/f0f0f0/a0a0a0.png?text=Sin+Imagen' }}
+            />
+            {b.data?.legend && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, textAlign: 'center', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {b.data.legend}
+                </Typography>
+            )}
+        </Box>
     )}
     
-    {b.type === "Video" && b.data?.url && (
-        <Box sx={{ my: 1, '& video': { width: '100%', borderRadius: 1, maxHeight: 150, backgroundColor: '#000' } }}>
-            <video src={b.data.url} controls muted loop playsInline />
+    {b.type === "Video" && (b.data?.url || b.data?.filename) && (
+        <Box sx={{ my: 1 }}>
+            <Box sx={{ '& video': { width: '100%', borderRadius: 1, maxHeight: 150, backgroundColor: '#000' } }}>
+                <video 
+                    src={`${config.API_URL.replace('api/', 'media/')}${b.data?.filename || (b.data?.url ? String(b.data.url).split('/').pop() : '')}`} 
+                    controls muted playsInline 
+                />
+            </Box>
+            {b.data?.legend && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, textAlign: 'center', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {b.data.legend}
+                </Typography>
+            )}
         </Box>
     )}
 
-    {b.type === "Audio" && b.data?.url && (
+    {b.type === "Audio" && (b.data?.url || b.data?.filename) && (
         <Box sx={{ my: 1 }}>
-            <audio src={b.data.url} controls style={{ width: '100%' }} />
+            <audio 
+                src={`${config.API_URL.replace('api/', 'media/')}${b.data?.filename || (b.data?.url ? String(b.data.url).split('/').pop() : '')}`} 
+                controls style={{ width: '100%' }} 
+            />
         </Box>
     )}
     
@@ -1264,8 +1283,6 @@ data.filename = uploadedFileName;
             Pregunta: {b.data?.question || "Sin pregunta"}
         </Typography>
     )}
-
-
 
     <Stack spacing={0.5} sx={{ mt: 1 }}>
         {(b.type === "Encuesta" ? (b.data?.keywords || []) : outputPorts).map((k: string) => {
