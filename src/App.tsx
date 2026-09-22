@@ -21,7 +21,7 @@ import ConstructorFlujo from "./pages/ConstructorFlujos";
 import InstancesPage from "./pages/InstancesPage"
 import AccountPage from "./pages/AccountPage";
 import PaySubscription from "./pages/PaySubscription";
-
+import Broadcast from "./pages/Broadcast";
 
 function App() {
   const [mode, setMode] = useState<"light" | "dark">("light");
@@ -76,6 +76,7 @@ function App() {
           <Route path="inbox" element={<BandejadeEntrada />} />
           <Route path="calentador" element={<CalentadorWhatsapp />} />
           <Route path="contacts" element={<Phonebook />} />
+          <Route path="broadcast" element={<Broadcast />} />
           <Route path="dashboard" element={<PanelControl />} />
           <Route path="users" element={<Users />} />
           <Route path="chatbot" element={<Chatbot />} />

@@ -400,6 +400,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                         label="Agenda telefónica"
                     />
                     <NavItem
+                        to="broadcast"
+                        icon={<CampaignIcon />}
+                        label="Campañas de difusión"
+                    />
+                    <NavItem
                         to="/panel/flows"
                         icon={<BuildIcon />}
                         label="Constructor de flujos"

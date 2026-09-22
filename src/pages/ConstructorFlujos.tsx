@@ -560,8 +560,7 @@ const loadFlows = async () => {
 const loadTemplates = async () => {
   try {
     const response = await templateService.getMyTemplates();
-    const templatesArray = response?.data?.data ?? [];
-
+    const templatesArray = response?.data ?? [];
     const mapped = Array.isArray(templatesArray) ? templatesArray : [];
 
     setTemplates(mapped);
