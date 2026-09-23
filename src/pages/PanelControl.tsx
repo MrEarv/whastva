@@ -69,8 +69,7 @@ interface MonthlyData {
 }
 
 interface DashboardData {
-  data : {
-    opened: MonthlyData[];
+  opened: MonthlyData[];
   pending: MonthlyData[];
   resolved: MonthlyData[];
   activeBot: MonthlyData[];
@@ -81,7 +80,6 @@ interface DashboardData {
   totalFlows: number;
   totalBroadcast: number;
   totalTemplets: number;
-  }
 }
 
 interface ChartToolbarProps {
@@ -242,26 +240,26 @@ const PanelControl: React.FC = () => {
     fetchDashboard();
   }, []);
 
-  const activityChartData = dashboardData?.data ? {
-    labels: dashboardData.data.opened.map((item) => item.month),
+  const activityChartData = dashboardData ? {
+    labels: dashboardData.opened.map((item) => item.month),
     datasets: [
       {
         label: 'Chat abierto',
-        data: dashboardData.data.opened.map((item) => item.numberOfOders),
+        data: dashboardData.opened.map((item) => item.numberOfOders),
         borderColor: 'rgba(255, 165, 0, 1)', 
         backgroundColor: 'rgba(255, 165, 0, 0.4)',
         fill: true,
       },
       {
         label: 'Chat pendiente',
-        data: dashboardData.data.pending.map((item) => item.numberOfOders),
+        data: dashboardData.pending.map((item) => item.numberOfOders),
         borderColor: 'rgba(78, 0, 153, 1)', 
         backgroundColor: 'rgba(78, 0, 153, 0.4)',
         fill: true,
       },
       {
         label: 'Chat resuelto',
-        data: dashboardData.data.resolved.map((item) => item.numberOfOders),
+        data: dashboardData.resolved.map((item) => item.numberOfOders),
         borderColor: 'rgba(0, 164, 38, 1)', 
         backgroundColor: 'rgba(0, 164, 38, 0.4)',
         fill: true,
@@ -269,19 +267,19 @@ const PanelControl: React.FC = () => {
     ],
   } : null;
 
-  const additionalMetricsChartData = dashboardData?.data ? {
-    labels: dashboardData.data.activeBot.map((item) => item.month),
+  const additionalMetricsChartData = dashboardData ? {
+    labels: dashboardData.activeBot.map((item) => item.month),
     datasets: [
       {
         label: 'Bots Activos',
-        data: dashboardData.data.activeBot.map((item) => item.numberOfOders),
+        data: dashboardData.activeBot.map((item) => item.numberOfOders),
         borderColor: 'rgba(199, 176, 5, 1)',
         backgroundColor: 'rgba(199, 176, 5, 0.4)',
         fill: true,
       },
       {
         label: 'Bots Desactivados',
-        data: dashboardData.data.dActiveBot.map((item) => item.numberOfOders),
+        data: dashboardData.dActiveBot.map((item) => item.numberOfOders),
         borderColor: 'rgba(0, 143, 105, 0.99)',
         backgroundColor: 'rgba(0, 143, 105, 0.4)',
         fill: true,
