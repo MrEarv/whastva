@@ -5,7 +5,7 @@ import {
     Box, Typography, TextField, InputAdornment, Chip, IconButton,
     Paper, useTheme, CircularProgress, List, Avatar, Menu, MenuItem,
     AppBar, Toolbar, ListItem, ListItemAvatar, ListItemText, Button, Modal, Badge, Link,
-    Fab, Zoom, 
+    Fab, Zoom, Select,
     ListItemIcon
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
@@ -545,6 +545,7 @@ const BandejadeEntrada: React.FC = () => {
     const theme = useTheme();
     const [chats, setChats] = useState<Chat[]>([]);
     const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+    const [userInstances, setUserInstances] = useState<any[]>([]); // Aquí almacenamos las instancias del usuario
     const [messages, setMessages] = useState<Message[]>([]);
     const [isLoadingChats, setIsLoadingChats] = useState(true);
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -790,19 +791,30 @@ const BandejadeEntrada: React.FC = () => {
         };
     }, []);
 
-    const fetchChats = async () => {
+    const fetchChats = async (selectedIns?: string) => {
         setIsLoadingChats(true);
         setError(null);
         try {
+            const insRes = await fetch(`${config.API_URL}session/get_instances_with_status`, { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+            const insData = await insRes.json();
+            if (insData.success) {
+                setUserInstances(insData.data.map((d: any) => d.i));
+            }
+
+            // Cargar los chats de la instancia seleccionada
+            const url = selectedIns 
+                ? `${config.API_URL}inbox/get_my_chats?instance=${encodeURIComponent(selectedIns)}`
+                : `${config.API_URL}inbox/get_my_chats`;
+
             const cachedChats = await db.chats.toArray();
-            if (cachedChats.length > 0) { setChats(cachedChats); }
-            const response = await fetch(`${config.API_URL}inbox/get_my_chats`, { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+            if (cachedChats.length > 0 && !selectedIns) { setChats(cachedChats); } // Usar caché solo al inicio
+
+            const response = await fetch(url, { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
             if (!response.ok) throw new Error('Error de red');
             const data = await response.json();
             if (data.success && Array.isArray(data.data)) {
                 if (data.userData?.selIns) setInstanceId(data.userData.selIns);
                 const serverChats: Chat[] = data.data.map((chat: any) => {
-                    
                     let lastMessageText = 'Chat iniciado';
                     try {
                         const parsedRawMessage = JSON.parse(chat.last_message);
@@ -813,7 +825,6 @@ const BandejadeEntrada: React.FC = () => {
                             lastMessageText = chat.last_message;
                         }
                     }
-
                     const cachedVersion = cachedChats.find(c => c.jid === chat.sender_jid);
                     return { 
                         id: chat.id.toString(), 
@@ -828,7 +839,7 @@ const BandejadeEntrada: React.FC = () => {
                         chatStatus: chat.chat_status || 'open' 
                     };
                 });
-                await db.chats.bulkPut(serverChats);
+                if (!selectedIns) await db.chats.bulkPut(serverChats);
                 setChats(serverChats);
             } else if (!cachedChats.length) { setError(data.msg || "No se pudieron cargar los chats."); }
         } catch (err: any) { if (!chats.length) setError(err.message); } 
@@ -1045,9 +1056,36 @@ const BandejadeEntrada: React.FC = () => {
                 }}
             />
 
-            <Paper elevation={1} sx={{ width: { xs: "100%", sm: "400px" }, p: 2, borderRight: `1px solid ${theme.palette.divider}`, bgcolor: 'background.paper', display: "flex", flexDirection: "column", height: "100%", boxSizing: 'border-box' }}>
-                <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2}}>
-                    <Typography variant="h5">Chats</Typography>
+           <Paper elevation={1} sx={{ width: { xs: "100%", sm: "400px" }, p: 2, borderRight: `1px solid ${theme.palette.divider}`, bgcolor: 'background.paper', display: "flex", flexDirection: "column", height: "100%", boxSizing: 'border-box' }}>
+                <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1}}>
+                    {userInstances.length > 0 ? (
+                        <Select
+                            variant="standard"
+                            disableUnderline
+                            value={instanceId || ''}
+                            onChange={(e) => {
+                                const val = e.target.value as string;
+                                setInstanceId(val);
+                                setSelectedChat(null);
+                                fetchChats(val);
+                            }}
+                            sx={{ 
+                                fontSize: '1.5rem', 
+                                fontWeight: 'bold', 
+                                color: 'text.primary',
+                                '.MuiSelect-select': { py: 0, paddingRight: '24px !important' }
+                            }}
+                        >
+                            {userInstances.map((ins, idx) => (
+                                <MenuItem key={idx} value={ins.instance_id}>
+                                    {ins.title}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    ) : (
+                        <Typography variant="h5" fontWeight="bold">Chats</Typography>
+                    )}
+                    
                     <Chip 
                         label={
                             connectionStatus === 'open' ? 'Conectado' :
@@ -1060,7 +1098,9 @@ const BandejadeEntrada: React.FC = () => {
                         size="small" 
                     />
                 </Box>
-                <TextField variant="outlined" size="small" placeholder="Buscar o iniciar un chat nuevo" fullWidth InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon /></InputAdornment>), }} sx={{mb: 2}} />
+
+                <TextField variant="outlined" size="small" placeholder="Buscar o iniciar un chat nuevo" fullWidth InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon /></InputAdornment>), }} sx={{mb: 2, mt: 1}} />
+                
                 <Box flex={1} sx={{ overflowY: 'auto' }}>
                     {isLoadingChats ? <Box display="flex" justifyContent="center" mt={4}><CircularProgress /></Box> :
                         error ? <Typography color="error" padding={2}>{error}</Typography> :
