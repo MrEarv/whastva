@@ -698,7 +698,7 @@ const BandejadeEntrada: React.FC = () => {
 
             socket.on('connect', () => {
                 console.log('🔌 Conectado al servidor de Sockets.');
-                setConnectionStatus('open'); 
+               // setConnectionStatus('open'); 
                 if (userId) socket.emit('user_connected', { userId });
             });
             
@@ -813,6 +813,11 @@ const BandejadeEntrada: React.FC = () => {
             if (!response.ok) throw new Error('Error de red');
             const data = await response.json();
             if (data.success && Array.isArray(data.data)) {
+                if (data.userData?.id === 'Desconectado') { 
+                    setConnectionStatus('disconnected'); 
+                } else {
+                    setConnectionStatus('open');
+                }
                 if (data.userData?.selIns) setInstanceId(data.userData.selIns);
                 const serverChats: Chat[] = data.data.map((chat: any) => {
                     let lastMessageText = 'Chat iniciado';
@@ -1062,7 +1067,7 @@ const BandejadeEntrada: React.FC = () => {
                         <Select
                             variant="standard"
                             disableUnderline
-                            value={instanceId || ''}
+                            value={instanceId || (userInstances.length > 0 ? userInstances[0].instance_id : '')}
                             onChange={(e) => {
                                 const val = e.target.value as string;
                                 setInstanceId(val);
