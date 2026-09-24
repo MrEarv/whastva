@@ -3,7 +3,7 @@ import {
   Box, Card, CardContent, Typography, TextField, Button, Table, TableHead,
   TableBody, TableRow, TableCell, TableContainer, Paper, IconButton,
   Select, MenuItem, FormControl, InputLabel, Grid, Chip, Dialog,
-  DialogTitle, DialogContent, DialogActions, OutlinedInput
+  DialogTitle, DialogContent, DialogActions, OutlinedInput, TableSortLabel
 } from "@mui/material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import CampaignIcon from "@mui/icons-material/Campaign";
@@ -28,6 +28,20 @@ export default function Broadcast() {
   const [delayTo, setDelayTo] = useState(30);
   const [scheduleDate, setScheduleDate] = useState("");
 
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+  const [orderBy, setOrderBy] = useState<string>('createdAt');
+
+  const handleSort = (property: string) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
+  const sortedCampaigns = [...campaigns].sort((a, b) => {
+    if (a[orderBy] < b[orderBy]) return order === 'asc' ? -1 : 1;
+    if (a[orderBy] > b[orderBy]) return order === 'asc' ? 1 : -1;
+    return 0;
+  });
   const getHeaders = () => ({
     "Content-Type": "application/json",
     Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -143,20 +157,28 @@ export default function Broadcast() {
         <Table>
           <TableHead sx={{ bgcolor: "grey.100" }}>
             <TableRow>
-              <TableCell sx={{ fontWeight: "bold" }}>Título</TableCell>
-              <TableCell sx={{ fontWeight: "bold" }}>Estado</TableCell>
-              <TableCell sx={{ fontWeight: "bold" }}>Creada el</TableCell>
-              <TableCell sx={{ fontWeight: "bold" }}>Programada para</TableCell>
+              <TableCell sx={{ fontWeight: "bold" }}>
+                <TableSortLabel active={orderBy === 'title'} direction={orderBy === 'title' ? order : 'asc'} onClick={() => handleSort('title')}>Título</TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: "bold" }}>
+                <TableSortLabel active={orderBy === 'status'} direction={orderBy === 'status' ? order : 'asc'} onClick={() => handleSort('status')}>Estado</TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: "bold" }}>
+                <TableSortLabel active={orderBy === 'createdAt'} direction={orderBy === 'createdAt' ? order : 'asc'} onClick={() => handleSort('createdAt')}>Creada el</TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: "bold" }}>
+                <TableSortLabel active={orderBy === 'schedule'} direction={orderBy === 'schedule' ? order : 'asc'} onClick={() => handleSort('schedule')}>Programada para</TableSortLabel>
+              </TableCell>
               <TableCell align="right" sx={{ fontWeight: "bold" }}>Acciones</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {campaigns.length === 0 ? (
+            {sortedCampaigns.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} align="center" sx={{ py: 4 }}>No hay campañas registradas.</TableCell>
               </TableRow>
             ) : (
-              campaigns.map((camp) => (
+              sortedCampaigns.map((camp) => (
                 <TableRow key={camp.id} hover>
                   <TableCell sx={{ fontWeight: 500 }}>{camp.title}</TableCell>
                   <TableCell>
