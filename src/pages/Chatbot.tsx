@@ -47,6 +47,7 @@ interface Chatbot {
   flow: string;
   active: number;
   instance_id: string;
+  prevent_book_id: string | number | null;
 }
 
 export default function Chatbot() {
@@ -70,6 +71,9 @@ export default function Chatbot() {
   const [flujo, setFlujo] = useState<Flow | null>(null);
   const [instancia, setInstancia] = useState("");
   const [activo, setActivo] = useState(true);
+
+  const [phonebooks, setPhonebooks] = useState<any[]>([]);
+  const [preventBook, setPreventBook] = useState<string | number>("");
 
   const apiCall = useCallback(async (endpoint: string, method: string = 'GET', body: object | null = null) => {
     try {
@@ -101,17 +105,19 @@ export default function Chatbot() {
     setIsLoading(true);
     setError(null);
     try {
-      const [chatbotsData, instancesData, flowsData, meData] = await Promise.all([
+      const [chatbotsData, instancesData, flowsData, meData, phonebooksData] = await Promise.all([
         apiCall('chatbot/get_mine'),
         apiCall('session/get_instances_with_status'),
         apiCall('flow/get_mine'),
-        apiCall('user/get_me')
+        apiCall('user/get_me'),
+        apiCall('user/get_phonebooks')
       ]);
 
       setChatbots(chatbotsData.data);
       setInstances(instancesData.data.map((d: any) => d.i));
       setFlows(flowsData.data);
       setUserId(meData.data.id);
+      setPhonebooks(phonebooksData.data);
     } catch (err) {
     } finally {
       setIsLoading(false);
@@ -144,7 +150,7 @@ try {
           instance_id: instancia,
           flow: flujo,
           for_all: paraTodos,
-          prevent_book_id: null
+          prevent_book_id: preventBook || null
         }
       }
     };
@@ -253,6 +259,7 @@ const handleToggleChatbotStatus = async (bot: Chatbot) => {
     setInstancia("");
     setActivo(true);
     setEditChatbot(null);
+    setPreventBook("");
   };
 
   return (
@@ -297,7 +304,16 @@ const handleToggleChatbotStatus = async (bot: Chatbot) => {
                 <Grid item xs={12}>
                   <FormControlLabel control={<Switch checked={paraTodos} onChange={e => setParaTodos(e.target.checked)} />} label="Para todos los contactos" />
                 </Grid>
-
+                {!paraTodos && (
+                  <Grid item xs={12}>
+                    <Select fullWidth size="small" value={preventBook} displayEmpty onChange={e => setPreventBook(e.target.value)} required={!paraTodos}>
+                      <MenuItem value="" disabled>Seleccionar agenda a ignorar (Ej. Soporte o Familia)</MenuItem>
+                      {phonebooks.map(pb => (
+                        <MenuItem key={pb.id} value={pb.id}>{pb.name}</MenuItem>
+                      ))}
+                    </Select>
+                  </Grid>
+                )}
                 <Grid item xs={12}>
                   <Box display="flex" justifyContent="flex-end" gap={2}>
                     <Button variant="outlined" color="secondary" onClick={() => { setShowAddChatbot(false); setEditChatbot(null); }}>Cerrar</Button>
@@ -352,6 +368,7 @@ const handleToggleChatbotStatus = async (bot: Chatbot) => {
                             setTitulo(bot.title);
                             setInstancia(bot.instance_id);
                             setParaTodos(!!bot.for_all);
+                            setPreventBook(bot.prevent_book_id || "");
                             setFlujo(flowFound || null);
                             setActivo(!!bot.active);
                             setShowAddChatbot(true);
