@@ -359,7 +359,11 @@ const handleToggleChatbotStatus = async (bot: Chatbot) => {
                         <TableCell>{bot.title}</TableCell>
                         <TableCell>{instances.find(i => i.instance_id === bot.instance_id)?.title || bot.instance_id}</TableCell>
                         <TableCell>{flowTitle}</TableCell>
-                        <TableCell>{bot.for_all ? 'Sí' : 'No'}</TableCell>
+                        <TableCell>{bot.for_all ? ('Sí') : (
+                          <span style={{ color: "gray", fontSize: "0.9em" }}>
+                            No (Excluye: {phonebooks.find(pb => String(pb.id) === String(bot.prevent_book_id))?.name || 'Agenda desconocida'})
+                          </span>)}
+                        </TableCell>
                         <TableCell><Switch checked={!!bot.active} onChange={() => handleToggleChatbotStatus(bot)} /></TableCell>
                         <TableCell align="right">
                           <IconButton size="small" onClick={() => {
