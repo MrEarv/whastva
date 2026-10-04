@@ -48,6 +48,7 @@ interface Chatbot {
   active: number;
   instance_id: string;
   prevent_book_id: string | number | null;
+  ai_prompt?: string | null;
 }
 
 export default function Chatbot() {
@@ -71,6 +72,7 @@ export default function Chatbot() {
   const [flujo, setFlujo] = useState<Flow | null>(null);
   const [instancia, setInstancia] = useState("");
   const [activo, setActivo] = useState(true);
+  const [aiPrompt, setAiPrompt] = useState("");
 
   const [phonebooks, setPhonebooks] = useState<any[]>([]);
   const [preventBook, setPreventBook] = useState<string | number>("");
@@ -150,7 +152,8 @@ try {
           instance_id: instancia,
           flow: flujo,
           for_all: paraTodos,
-          prevent_book_id: preventBook || null
+          prevent_book_id: preventBook || null,
+          ai_prompt: aiPrompt
         }
       }
     };
@@ -172,7 +175,8 @@ try {
           instance_id: instancia,
           flow: flujo,
           for_all: paraTodos,
-          prevent_book_id: null
+          prevent_book_id: null,
+          ai_prompt: aiPrompt
         }
       }
     };
@@ -260,6 +264,7 @@ const handleToggleChatbotStatus = async (bot: Chatbot) => {
     setActivo(true);
     setEditChatbot(null);
     setPreventBook("");
+    setAiPrompt("");
   };
 
   return (
@@ -314,6 +319,21 @@ const handleToggleChatbotStatus = async (bot: Chatbot) => {
                     </Select>
                   </Grid>
                 )}
+                <Grid item xs={12}>
+                  <TextField 
+                    fullWidth 
+                    multiline
+                    rows={4}
+                    size="small" 
+                    label="Personalidad y Reglas de la Inteligencia Artificial (Opcional)" 
+                    placeholder="Ej: Eres un vendedor amable. Usa respuestas cortas y no uses emojis..."
+                    value={aiPrompt} 
+                    onChange={e => setAiPrompt(e.target.value)} 
+                  />
+                  <Typography variant="caption" color="textSecondary">
+                    Define cómo responderá Ollama cuando el cliente escriba algo fuera del flujo estático.
+                  </Typography>
+                </Grid>
                 <Grid item xs={12}>
                   <Box display="flex" justifyContent="flex-end" gap={2}>
                     <Button variant="outlined" color="secondary" onClick={() => { setShowAddChatbot(false); setEditChatbot(null); }}>Cerrar</Button>
@@ -375,6 +395,7 @@ const handleToggleChatbotStatus = async (bot: Chatbot) => {
                             setPreventBook(bot.prevent_book_id || "");
                             setFlujo(flowFound || null);
                             setActivo(!!bot.active);
+                            setAiPrompt(bot.ai_prompt || "");
                             setShowAddChatbot(true);
                           }}>
                             <Pencil size={16} />
