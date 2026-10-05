@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import config from "../config";
-import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, Link, useLocation, useNavigate, Navigate } from "react-router-dom";
 import {
     Drawer,
     List,
@@ -233,6 +233,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         localStorage.removeItem('token');
         navigate('/login');
     };
+    const token = localStorage.getItem('token');
+    if (!token) {
+        return <Navigate to="/login" replace />;
+    }
 
 
     return (
