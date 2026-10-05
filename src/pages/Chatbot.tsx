@@ -329,6 +329,7 @@ const handleToggleChatbotStatus = async (bot: Chatbot) => {
                     placeholder="Ej: Eres un vendedor amable. Usa respuestas cortas y no uses emojis..."
                     value={aiPrompt} 
                     onChange={e => setAiPrompt(e.target.value)} 
+                    inputProps={{ maxLength: 500 }}
                   />
                   <Typography variant="caption" color="textSecondary">
                     Define cómo responderá Ollama cuando el cliente escriba algo fuera del flujo estático.
