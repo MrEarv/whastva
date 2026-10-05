@@ -16,6 +16,7 @@ import {
     Switch,
     FormControlLabel,
     CircularProgress,
+    Alert,
 } from '@mui/material';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
@@ -26,7 +27,7 @@ import Badge from '@mui/material/Badge';
 
 const fechaHora = new Date().toLocaleString("es-MX", { hour12: false });
 
-const INTERVALO_MONITOREO = 20000;
+const INTERVALO_MONITOREO = 3000;
 
 
 interface Instance {
@@ -66,6 +67,7 @@ const InstancesPage = () => {
     const [qrCodeImage, setQrCodeImage] = React.useState<string | null>(null);
     const [qrLoading, setQrLoading] = React.useState(false);
     const [instanceIdAfterAdd, setInstanceIdAfterAdd] = React.useState<string | null>(null);
+    const [modalError, setModalError] = React.useState<string | null>(null); 
     
 
     const [sessionIdForStatus, setSessionIdForStatus] = React.useState<string | null>(null); 
@@ -86,6 +88,7 @@ const InstancesPage = () => {
         setSessionIdForStatus(null);
         setIsMonitoring(false);
         setConnectionState('SCAN');
+        setModalError(null);
         setOpenDialog(true);
     };
     
@@ -125,23 +128,25 @@ const InstancesPage = () => {
             const mappedInstances: Instance[] = rawInstances.map((inst: any) => {
                 let parsedUserData = { id: '', name: '' };
                 
-                if (inst.userData) {
+                const dbInst = inst.i || inst;
+                
+                if (dbInst.data) {
                     try {
-                        const userData = typeof inst.userData === 'string' ? JSON.parse(inst.userData) : inst.userData;
-                        parsedUserData.id = (userData.id && typeof userData.id === 'string') ? userData.id.split(':')[0].replace(/@.*$/, '') : userData.id || '';
-                        parsedUserData.name = userData.name || '';
+                        const userData = typeof dbInst.data === 'string' ? JSON.parse(dbInst.data) : dbInst.data;
+                        parsedUserData.id = dbInst.number || (userData?.id && typeof userData.id === 'string' ? userData.id.split(':')[0].replace(/@.*$/, '') : '') || '';
+                        parsedUserData.name = userData?.name || '';
                     } catch (e) {
-                        console.error("Error parsing userData for instance:", inst.id, inst.userData, e);
+                        console.error("Error parsing data for instance:", dbInst.id, e);
                     }
                 }
                 
-                const status = (inst.status || '').toUpperCase();
+                const status = (dbInst.status || '').toUpperCase();
                 const isAvailable = status === 'CONNECTED' || status === 'LOGGEDIN' || status === 'ACTIVE';
 
                 return {
-                    ...inst,
-                    name: inst.title,
-                    id: inst.instance_id || inst.id, 
+                    ...dbInst,
+                    name: dbInst.title,
+                    id: dbInst.instance_id || dbInst.id, 
                     isAvailable: isAvailable, 
                     userId: parsedUserData.id,
                     userName: parsedUserData.name,
@@ -161,128 +166,119 @@ const InstancesPage = () => {
 
 
     const fetchStatus = useCallback(async (sessionId: string) => {
-        setConnectionState('CONNECTING');
-try {
-    const response = await fetch(config.API_URL + '/session/status', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: 'Bearer ' + localStorage.getItem('token'),
-        },
-        body: JSON.stringify({ id: sessionId }),
-    });
+        try {
+            const response = await fetch(config.API_URL + '/session/status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: 'Bearer ' + localStorage.getItem('token'),
+                },
+                body: JSON.stringify({ id: sessionId }),
+            });
 
-    const resp = await response.json();
+            const resp = await response.json();
 
-    if (!response.ok || resp.estatus === false) {
-        throw new Error(resp.mensaje || "Error de la API al consultar el estado.");
-    }
+            if (!response.ok || resp.estatus === false) {
+                throw new Error(resp.mensaje || "Error de la API al consultar el estado.");
+            }
 
-    const { data } = resp;
+            if (resp.status === true) {
+                setIsMonitoring(false);
+                setConnectionState('CONNECTED');
+                handleCloseDialog(); 
+                fetchInstancias();   
+                return true;
+            }
 
-    if (data?.success === true && data?.status === true) {
-        setIsMonitoring(false);
-        setConnectionState('CONNECTED');
-        handleCloseDialog();
-        fetchInstancias();
-        return true;
-    }
+            if (resp.qr) {
+                setQrCodeImage(resp.qr);
+                setConnectionState('SCAN');
+            } else {
+                setConnectionState('SCAN');
+            }
 
-    if (data?.qr) {
-        setQrCodeImage(data.qr);
-        setConnectionState('SCAN');
-    } else {
-        setConnectionState('SCAN');
-    }
+            return false;
 
-    return false;
-
-} catch (error) {
-    console.error("Error al monitorear el estado:", error);
-    setIsMonitoring(false);
-    setConnectionState('SCAN');
-    return false;
-}
-    }, [instanceIdAfterAdd, fetchInstancias, handleCloseDialog]); 
+        } catch (error) {
+            console.error("Error al monitorear el estado:", error);
+            setIsMonitoring(false); // Detenemos el bucle si hay error crítico
+            setConnectionState('SCAN');
+            return false;
+        }
+    }, [fetchInstancias]);
 
 const fetchQrCode = async (payload: { title: string; syncMax: boolean }) => {
-    setQrLoading(true);
-    setQrCodeImage(null);
+        setQrLoading(true);
+        setQrCodeImage(null);
+        setModalError(null);
 
-    try {
-        const requestBody = {
-            fecha: fechaHora,
-            auth: localStorage.getItem("token") || "",
-            accion: "Crear QR",
-            ...payload
-        };
+        try {
+            const requestBody = {
+                fecha: fechaHora,
+                auth: localStorage.getItem("token") || "",
+                accion: "Crear QR",
+                ...payload
+            };
 
-        const response = await fetch(config.API_URL + "/session/create_qr", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: "Bearer " + localStorage.getItem("token"),
-            },
-            body: JSON.stringify(requestBody),
-        });
+            const response = await fetch(config.API_URL + "/session/create_qr", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer " + localStorage.getItem("token"),
+                },
+                body: JSON.stringify(requestBody),
+            });
 
-        const api = await response.json();
-        const responseData = api.data || api;
+            const api = await response.json();
 
-        const qrUrl =
-            responseData.qrCodeUrl ||
-            responseData.url ||
-            responseData.qr ||
-            null;
+            if (!api.success) {
+                let errorMsg = api.msg || "Error al procesar la solicitud.";
+                if (errorMsg.includes("instances limits are reached")) {
+                    errorMsg = "Has alcanzado el límite de instancias de tu plan. Elimina una o mejora tu suscripción.";
+                }
+                throw new Error(errorMsg);
+            }
 
-        const sessionId =
-            responseData.sessionId ||
-            responseData.id ||
-            null;
+            const responseData = api.data || api;
+            const qrUrl = responseData.qrCodeUrl || responseData.url || responseData.qr || null;
+            const sessionId = responseData.sessionId || responseData.id || null;
 
-        if (qrUrl && sessionId) {
-            setQrCodeImage(qrUrl);
-            setSessionIdForStatus(sessionId);
-            setIsMonitoring(true);
-            setConnectionState("SCAN");
-        } else {
-            console.error("API response missing QR URL or SessionID:", api);
-            alert("La respuesta del API no contiene una URL de QR o SessionID válida.");
+            if (qrUrl && sessionId) {
+                setQrCodeImage(qrUrl);
+                setSessionIdForStatus(sessionId);
+                setIsMonitoring(true);
+                setConnectionState("SCAN");
+            } else {
+                throw new Error("La respuesta del servidor no contiene un código QR válido.");
+            }
+
+            return api;
+
+        } catch (error: any) {
+            console.error("Error en QR:", error);
+            setModalError(error.message); 
+            setSessionIdForStatus(null);
+            setInstanceIdAfterAdd(null);  
+            throw error; 
+        } finally {
+            setQrLoading(false);
         }
+    };
 
-        return api;
-
-    } catch (error: any) {
-        console.error("Error al obtener el código QR:", error);
-        alert(`Error al obtener el código QR: ${error.message}. Intenta de nuevo.`);
-        setSessionIdForStatus(null);
-    } finally {
-        setQrLoading(false);
-    }
-};
-
-   
     const handleAddInstance = async () => {
         if (!newInstance.title) {
-            alert('El nombre de la instancia (title) es obligatorio.');
+            setModalError('El nombre de la instancia es obligatorio.');
             return;
         }
 
         setAddLoading(true);
+        setModalError(null);
 
         try {
-            const payload = {
-                title: newInstance.title,
-                syncMax: newInstance.syncMax
-            };
-            
+            const payload = { title: newInstance.title, syncMax: newInstance.syncMax };
             setInstanceIdAfterAdd(newInstance.title); 
             await fetchQrCode(payload);
-
         } catch (error) {
-            console.error('Error en el flujo de QR/Creación:', error);
-            setInstanceIdAfterAdd(null);
-            setSessionIdForStatus(null);
             setIsMonitoring(false);
         } finally {
             setAddLoading(false);
@@ -384,14 +380,22 @@ const fetchQrCode = async (payload: { title: string; syncMax: boolean }) => {
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Button
                             variant="contained"
+                            color="primary"
                             startIcon={<AddCircleOutlineIcon />}
                             onClick={handleOpenDialog}
                             sx={{
-                                bgcolor: '#000',
-                                color: '#fff',
-                                '&:hover': { bgcolor: '#333' },
                                 borderRadius: '8px',
+                                px: 3,
+                                py: 1,
                                 mr: 2,
+                                fontWeight: 'bold',
+                                textTransform: 'none',
+                                boxShadow: 2,
+                                transition: 'all 0.2s',
+                                '&:hover': { 
+                                    transform: 'translateY(-2px)',
+                                    boxShadow: 4
+                                }
                             }}
                         >
                             Agregar instancia
@@ -418,8 +422,17 @@ const fetchQrCode = async (payload: { title: string; syncMax: boolean }) => {
                                     variant="dot"
                                     anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                                     overlap="circular"
+                                    sx={{
+                                        '& .MuiBadge-badge': {
+                                            width: 12,
+                                            height: 12,
+                                            borderRadius: '50%',
+                                            border: '2px solid white',
+                                            backgroundColor: instance.isAvailable ? '#44b700' : '#f44336'
+                                        }
+                                    }}
                                 >
-                                    <WhatsAppIcon sx={{ fontSize: 48, color: instance.isAvailable ? '#25D366' : '#1fab50ff' }} />
+                                    <WhatsAppIcon sx={{ fontSize: 48, color: instance.isAvailable ? '#25D366' : '#9e9e9e' }} />
                                 </Badge>
                                 <Box>
                                     <Typography variant="h6" fontWeight="bold">
@@ -427,11 +440,13 @@ const fetchQrCode = async (payload: { title: string; syncMax: boolean }) => {
                                     </Typography>
                                     <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
                                         <Chip
-                                            label={instance.isAvailable ? 'disponible' : (instance.status || 'desconectado')}
+                                            label={instance.isAvailable ? 'Conectado' : 'Desconectado'}
                                             size="small"
                                             sx={{
-                                                bgcolor: instance.isAvailable ? '#e6ffe6' : '#f4f4f4',
-                                                color: instance.isAvailable ? '#1a6f1a' : '#666',
+                                                fontWeight: 'bold',
+                                                bgcolor: instance.isAvailable ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)',
+                                                color: instance.isAvailable ? '#2e7d32' : '#d32f2f',
+                                                border: `1px solid ${instance.isAvailable ? '#4caf50' : '#f44336'}`
                                             }}
                                         />
                                     </Box>
@@ -441,10 +456,10 @@ const fetchQrCode = async (payload: { title: string; syncMax: boolean }) => {
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: { xs: 0, sm: 'auto' } }}>
                                 <Box sx={{ textAlign: 'right', mr: 2 }}>
                                     <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                                        <PersonIcon fontSize="small" sx={{ mr: 0.5 }} /> {instance.userName || 'N/A'}
+                                        <PersonIcon fontSize="small" sx={{ mr: 0.5 }} /> {instance.userName || 'Sin perfil'}
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary">
-                                        #{instance.userId || 'N/A'}
+                                        {instance.userId ? `+${instance.userId}` : 'Sin número vinculado'}
                                     </Typography>
                                 </Box>
                                 <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
@@ -485,6 +500,11 @@ const fetchQrCode = async (payload: { title: string; syncMax: boolean }) => {
                     {instanceIdAfterAdd ? `Conectar Instancia: ${instanceIdAfterAdd}` : 'Agregar nueva instancia'}
                 </DialogTitle>
                 <DialogContent>
+                    {modalError && (
+                        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setModalError(null)}>
+                            {modalError}
+                        </Alert>
+                    )}
                     <Grid container spacing={2}>
                         <Grid item xs={12} sm={qrCodeImage || qrLoading ? 6 : 12}
                             sx={{
@@ -528,15 +548,23 @@ const fetchQrCode = async (payload: { title: string; syncMax: boolean }) => {
                                 <Button
                                     onClick={handleAddInstance}
                                     variant="contained"
+                                    color="primary"
                                     fullWidth
                                     sx={{
-                                        bgcolor: '#000',
-                                        '&:hover': { bgcolor: '#333' },
-                                        borderRadius: '8px'
+                                        borderRadius: '8px',
+                                        py: 1.2,
+                                        fontWeight: 'bold',
+                                        textTransform: 'none',
+                                        boxShadow: 2,
+                                        transition: 'all 0.2s',
+                                        '&:hover': { 
+                                            transform: 'translateY(-2px)',
+                                            boxShadow: 4
+                                        }
                                     }}
                                     disabled={!newInstance.title || addLoading || !!instanceIdAfterAdd}
                                 >
-                                    {addLoading ? <CircularProgress size={24} color="inherit" /> : 'Generar Código QR'}
+                                    {addLoading ? <CircularProgress size={24} color="inherit" /> : 'Generar código QR'}
                                 </Button>
                             </Box>
                         </Grid>
@@ -583,13 +611,21 @@ const fetchQrCode = async (payload: { title: string; syncMax: boolean }) => {
                     </Grid>
                 </DialogContent>
 
-                <DialogActions>
+                <DialogActions sx={{ p: 2, pt: 0 }}>
                     <Button 
                         onClick={handleCloseDialog} 
-                        color="primary" 
                         disabled={addLoading || qrLoading}
+                        sx={{ 
+                            color: 'text.secondary', 
+                            textTransform: 'none',
+                            fontWeight: 'medium',
+                            '&:hover': {
+                                backgroundColor: 'rgba(0,0,0,0.04)',
+                                color: 'text.primary'
+                            }
+                        }}
                     >
-                        Cerrar
+                        Cancelar
                     </Button>
                 </DialogActions>
             </Dialog>
