@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import ListAltIcon from '@mui/icons-material/ListAlt';
 import config from "../config";
 import {
   Box,
@@ -65,35 +66,51 @@ const GenerateTokenSection = () => {
 
   useEffect(() => {
     const fetchToken = async () => {
-          try {
-            const response = await fetch(config.API_URL+"/user/get_me", {
-                      method: "GET",
-                      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token'),},
-                    }); 
-      
-            const { data } =  await response.json();
-            console.log(data);
-
-            setApitoken({
-              token: data.token || ''
-            })
-      
-          } catch (error) {
-            console.log(error);
-          }
-          
-        };
-          fetchToken();
+      try {
+        const response = await fetch(config.API_URL+"/user/get_me", {
+          method: "GET",
+          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token')},
+        }); 
+  
+        const { data } =  await response.json();
+        setApitoken({ token: data.token || '' });
+        
+        // Si el usuario ya tiene un token en la BD, forzamos a que aparezca la caja
+        if (data.token) {
+           setToken("visible"); 
+        }
+  
+      } catch (error) {
+        console.log(error);
+      }
+    };
+    fetchToken();
   }, []);
   
 
-  const handleGenerateToken = () => {
+  const handleGenerateToken = async () => {
     setLoading(true);
     setCopied(false);
-    setTimeout(() => {
-      setToken(generateToken());
-      setLoading(false);
-    }, 1500);
+    try {
+      // Ahora sí llamamos al backend real en Node.js
+      const response = await fetch(config.API_URL+"/user/gen_api_token", {
+          method: "GET",
+          headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + localStorage.getItem('token')
+          }
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+          setApitoken({ token: data.token }); // Guardamos el token real de JWT
+          setToken("visible"); // Hacemos que aparezca la caja de texto
+      }
+    } catch (error) {
+        console.log(error);
+    } finally {
+        setLoading(false);
+    }
   };
 
   const handleCopyToken = () => {
@@ -142,7 +159,7 @@ const GenerateTokenSection = () => {
           </Typography>
           <TextField
             fullWidth
-            defaultValue={apitoken.token}
+            value={apitoken.token || ""}
             variant="outlined"
             InputProps={{
               readOnly: true,
@@ -194,6 +211,108 @@ const GetMethodSection = () => {
   };
 
   const tabContents = [
+    {
+      title: "LISTAR CHATS",
+      icon: <ListAltIcon />,
+      content: (
+        <>
+          <Typography variant="h6" gutterBottom color={theme.palette.text.primary}>
+            1. Enviar una petición GET a:
+          </Typography>
+          <Paper elevation={1} sx={{ p: 2, mb: 3, backgroundColor: isDarkMode ? theme.palette.grey[800] : '#f1f4f8', borderRadius: '8px', borderLeft: '4px solid #4e89ae' }}>
+            <Typography variant="body2" sx={{ color: isDarkMode ? theme.palette.info.light : '#4e89ae', fontWeight: 'bold', overflowWrap: 'break-word', fontFamily: 'monospace' }}>
+              http://localhost:8022/api/v1/get-chats?token=<span style={{ color: isDarkMode ? theme.palette.warning.light : '#c41151', fontWeight: 'bold' }}>TOKEN_HERE</span>&instance_id=<span style={{ color: isDarkMode ? theme.palette.warning.light : '#c41151', fontWeight: 'bold' }}>ID</span>
+            </Typography>
+          </Paper>
+
+          <Typography variant="h6" gutterBottom color={theme.palette.text.primary}>
+            2. Indicadores
+          </Typography>
+          <Paper elevation={1} sx={{ p: 2, mb: 3, backgroundColor: isDarkMode ? theme.palette.grey[800] : '#f1f4f8', borderRadius: '8px', borderLeft: '4px solid #fcef00ff' }}>
+            <Box component="ul" sx={{ pl: 2, mb: 0, listStyleType: 'none', color: theme.palette.text.secondary }}>
+              <li><Typography variant="body2"><span style={{ color: isDarkMode ? theme.palette.warning.light : '#c41151', fontWeight: 'bold' }}>token</span> = tu token de acceso API,</Typography></li>
+              <li><Typography variant="body2"><span style={{ color: isDarkMode ? theme.palette.warning.light : '#c41151', fontWeight: 'bold' }}>instance_id</span> = ID de la instancia de WhatsApp.</Typography></li>
+            </Box>
+          </Paper>
+
+          <Typography variant="h6" gutterBottom color={theme.palette.text.primary}>
+            3. Respuesta Exitosa
+          </Typography>
+          <Paper elevation={1} sx={{ p: 2, mb: 3, backgroundColor: isDarkMode ? theme.palette.grey[800] : '#f1f4f8', borderRadius: '8px', borderLeft: '4px solid #4caf50' }}>
+            <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', color: theme.palette.text.primary }}>
+              {`{
+  "success": true,
+  "data": [
+    { "chat_id": "...", "sender_name": "...", "sender_mobile": "..." }
+  ]
+}`}
+            </Typography>
+          </Paper>
+          <Typography variant="h6" gutterBottom color={theme.palette.text.primary}>
+            4. Failed response
+          </Typography>
+          <Paper elevation={1} sx={{ p: 2, mb: 3, backgroundColor: isDarkMode ? theme.palette.grey[800] : '#f1f4f8', borderRadius: '8px', borderLeft: '4px solid #f44336' }}>
+            <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', color: theme.palette.text.primary }}>
+              {`{
+  "success": false,
+  "message": "<REASON>"
+}`}
+            </Typography>
+          </Paper>
+        </>
+      ),
+
+    },
+    {
+      title: "LISTAR MENSAJES",
+      icon: <ChatBubbleOutlineIcon />,
+      content: (
+        <>
+          <Typography variant="h6" gutterBottom color={theme.palette.text.primary}>
+            1. Enviar una petición GET a:
+          </Typography>
+          <Paper elevation={1} sx={{ p: 2, mb: 3, backgroundColor: isDarkMode ? theme.palette.grey[800] : '#f1f4f8', borderRadius: '8px', borderLeft: '4px solid #4e89ae' }}>
+            <Typography variant="body2" sx={{ color: isDarkMode ? theme.palette.info.light : '#4e89ae', fontWeight: 'bold', overflowWrap: 'break-word', fontFamily: 'monospace' }}>
+              http://localhost:8022/api/v1/get-messages?token=<span style={{ color: isDarkMode ? theme.palette.warning.light : '#c41151', fontWeight: 'bold' }}>TOKEN_HERE</span>&instance_id=<span style={{ color: isDarkMode ? theme.palette.warning.light : '#c41151', fontWeight: 'bold' }}>ID</span>&chat_id=<span style={{ color: isDarkMode ? theme.palette.warning.light : '#c41151', fontWeight: 'bold' }}>CHAT_ID</span>
+            </Typography>
+          </Paper>
+
+          <Typography variant="h6" gutterBottom color={theme.palette.text.primary}>
+            2. Indicadores
+          </Typography>
+          <Paper elevation={1} sx={{ p: 2, mb: 3, backgroundColor: isDarkMode ? theme.palette.grey[800] : '#f1f4f8', borderRadius: '8px', borderLeft: '4px solid #fcef00ff' }}>
+            <Box component="ul" sx={{ pl: 2, mb: 0, listStyleType: 'none', color: theme.palette.text.secondary }}>
+              <li><Typography variant="body2"><span style={{ color: isDarkMode ? theme.palette.warning.light : '#c41151', fontWeight: 'bold' }}>token</span> = tu token de acceso API,</Typography></li>
+              <li><Typography variant="body2"><span style={{ color: isDarkMode ? theme.palette.warning.light : '#c41151', fontWeight: 'bold' }}>instance_id</span> = ID de la instancia,</Typography></li>
+              <li><Typography variant="body2"><span style={{ color: isDarkMode ? theme.palette.warning.light : '#c41151', fontWeight: 'bold' }}>chat_id</span> = ID del chat (obtenido al listar chats).</Typography></li>
+            </Box>
+          </Paper>
+          <Typography variant="h6" gutterBottom color={theme.palette.text.primary}>
+            3. Respuesta Exitosa
+          </Typography>
+          <Paper elevation={1} sx={{ p: 2, mb: 3, backgroundColor: isDarkMode ? theme.palette.grey[800] : '#f1f4f8', borderRadius: '8px', borderLeft: '4px solid #4caf50' }}>
+            <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', color: theme.palette.text.primary }}>
+              {`{
+  "success": true,
+  "data": [
+    {
+      "group": ...,
+      "type": "text",
+      "msgId": "...",
+      "remoteJid": "...@",
+      "msgContext": { "text": "..." },
+      "timestamp": ...,
+      "senderName": "...",
+      "status": "...",
+      "route": "..."
+    }
+  ]
+}`}
+            </Typography>
+          </Paper>
+        </>
+      ),
+    },
     {
       title: "MENSAJE DE TEXTO",
       icon: <ChatBubbleOutlineIcon />,
